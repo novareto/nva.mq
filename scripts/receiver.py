@@ -1,9 +1,11 @@
+
 # -*- coding: utf-8 -*-
 
 import optparse
 import transaction
 from nva.mq.manager import Message, MQTransaction
-from kombu import Exchange, Queue
+from kombu.mixins import ConsumerMixin
+from kombu import Connection, Consumer, Exchange, Queue
 
 
 exchange = Exchange("messages", type="direct")
@@ -13,11 +15,26 @@ queues = dict(
     )
 
 
-def rabbitmq_sender(url):
-    message = Message(u"Hey, i'm here", type='info')
-    with transaction.manager as tm:
-        with MQTransaction(url, queues, tm) as message_manager:
-            message_manager.createMessage(message)
+class Reader(ConsumerMixin):
+    '''Reads one message then quits.
+    If no message is available : wait.
+    '''
+
+    def __init__(self, connection):
+        self.connection = connection
+ 
+    def get_consumers(self, Consumer, channel):
+        return [Consumer(queues=queues.values(), callbacks=[self.read])]
+ 
+    def read(self, body, message):
+        print body
+        message.ack()
+        self.should_stop = True
+
+
+def rabbitmq_receive(url):
+    with Connection(url) as conn:
+        Reader(conn).run()
 
 
 if __name__ == "__main__":
@@ -42,4 +59,5 @@ if __name__ == "__main__":
 
     url = "amqp://%s:%s@%s/%s" % (
         options.user, options.password, options.host, options.vhost)
-    rabbitmq_sender(url)
+    rabbitmq_receive(url)
+

@@ -29,20 +29,21 @@ class Message(object):
         return {'message': self.message}
         
     @staticmethod
-    def publish(payload, connection, queue):
-        with producers[connection].acquire(block=True) as producer:
-            maybe_declare(queue, producer.channel)
+    def publish(payload, connection, queue, routing_key):
+        exchange = queue.exchange
+        with connection.Producer(serializer='json') as producer:
             producer.publish(
-                payload, serializer="pickle", routing_key=self.type)
+                payload, exchange=exchange, routing_key=routing_key, 
+                declare=[queue])
 
     
 
 @implementer(IDataManager)
 class MQDataManager(object):
 
-    def __init__(self, url, queue):
+    def __init__(self, url, queues):
         self.url = url
-        self.queue = queue
+        self.queues = queues
         self.messages = {}
 
     def createMessage(self, message):
@@ -54,7 +55,8 @@ class MQDataManager(object):
         with Connection(self.url) as conn:
             for message in self.messages.values():
                 payload = message.dump()
-                message.publish(payload, conn, self.queue)
+                queue = self.queues.get(message.type)
+                message.publish(payload, conn, queue, message.type)
 
     def abort(self, transaction):
         self.messages = {}
@@ -66,7 +68,7 @@ class MQDataManager(object):
         pass
 
     def tpc_finish(self, transaction):
-        self.state = CLOSED
+        pass
 
     def tpc_abort(self, transaction):
         pass
@@ -77,15 +79,15 @@ class MQDataManager(object):
 
 class MQTransaction(object):
 
-    def __init__(self, url, queue, transaction_manager=None):
+    def __init__(self, url, queues, transaction_manager=None):
         self.url = url
-        self.queue = queue
+        self.queues = queues
         if transaction_manager is None:
             transaction_manager = transaction.manager
         self.transaction_manager = transaction_manager
 
     def __enter__(self):
-        dm = MQDataManager(self.url, self.queue)
+        dm = MQDataManager(self.url, self.queues)
         self.transaction_manager.join(dm)
         return dm
   
