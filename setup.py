@@ -23,6 +23,11 @@ setup(name='nva.mq',
       include_package_data=True,
       namespace_packages=['nva'],
       zip_safe=False,
-      install_requires=['transaction', 'kombu', 'grokcore.component'],
+      install_requires=[
+          'transaction',
+          'kombu',
+          'grokcore.component',
+          'setuptools',
+          ],
       test_suite = "nva.mq",
       )
