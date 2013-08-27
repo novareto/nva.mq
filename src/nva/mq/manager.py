@@ -11,7 +11,7 @@ from zope.interface import implementer
 from transaction.interfaces import IDataManager
 
 
-log = logging.getLogger("repoze.filesafe")
+log = logging.getLogger("nva.mq")
 
 _local = threading.local()
 
@@ -52,3 +52,7 @@ class MQDataManager(object):
         if message.__hash__() in self.messages.keys():
             raise ValueError('%s MessageHash already there' %message.__hash__())
         self.messages[message.id] = message
+
+    def commit(self):
+        for message in self.messages.values():
+            message
