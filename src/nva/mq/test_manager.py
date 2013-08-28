@@ -1,9 +1,11 @@
 import unittest
 from nva.mq.manager import MQDataManager, Message
 from nva.mq.components import MQSender
-from kombu import Exchange, Queue
+from kombu import Exchange, Queue, Consumer, Connection
+from kombu.mixins import ConsumerMixin
 
 
+URL = "memory://localhost:8888//"
 EXCHANGE = Exchange("messages", type="direct")
 QUEUES = dict(
     alert=Queue("alert", EXCHANGE, routing_key="alert"),
@@ -11,11 +13,36 @@ QUEUES = dict(
 )
 
 
+RESULTS = []
+
+
+class Reader(ConsumerMixin):
+    '''Reads one message then quits.
+    If no message is available : wait.
+    '''
+
+    def __init__(self, connection):
+        self.connection = connection
+
+    def get_consumers(self, Consumer, channel):
+        return [Consumer(queues=QUEUES.values(), callbacks=[self.read])]
+
+    def read(self, body, message):
+        RESULTS.append(message)
+        message.ack()
+        self.should_stop = True
+
+
+def rabbitmq_receive(url):
+    with Connection(url) as conn:
+        Reader(conn).run()
+
+
 class FileSafeDataManagerTests(unittest.TestCase):
 
     def setUp(self):
         self.dm = MQDataManager(
-            url="memory://localhost:8888//",
+            url=URL,
             queues=QUEUES)
         self.message = Message('BLA', 'info')
 
@@ -43,3 +70,8 @@ class FileSafeDataManagerTests(unittest.TestCase):
         tr.join(self.dm)
         self.dm.createMessage(self.message)
         transaction.commit()
+        self.assertEqual(len(RESULTS), 0)
+        rabbitmq_receive(URL)
+        self.assertEqual(len(RESULTS), 1)
+        message = RESULTS[0]
+        self.assertEqual(message.body, '{"message": "BLA"}')
