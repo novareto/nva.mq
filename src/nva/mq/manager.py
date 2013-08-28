@@ -53,7 +53,8 @@ class MQDataManager(object):
 
     def commit(self, transaction):
         with Connection(self.url) as conn:
-            for message in self.messages.values():
+            while self.messages:
+                uid, message = self.messages.popitem()
                 payload = message.dump()
                 queue = self.queues.get(message.type)
                 message.publish(payload, conn, queue, message.type)
