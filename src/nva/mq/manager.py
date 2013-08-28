@@ -20,23 +20,23 @@ class Message(object):
     def __init__(self, message, type):
         self.message = message
         self.type = type
-    
+
     @property
     def id(self):
         return self.__hash__()
 
     def dump(self):
         return {'message': self.message}
-        
+
     @staticmethod
     def publish(payload, connection, queue, routing_key):
         exchange = queue.exchange
         with connection.Producer(serializer='json') as producer:
             producer.publish(
-                payload, exchange=exchange, routing_key=routing_key, 
+                payload, exchange=exchange, routing_key=routing_key,
                 declare=[queue])
 
-    
+
 
 @implementer(IDataManager)
 class MQDataManager(object):
@@ -90,6 +90,6 @@ class MQTransaction(object):
         dm = MQDataManager(self.url, self.queues)
         self.transaction_manager.join(dm)
         return dm
-  
+
     def __exit__(self, type, value, traceback):
         pass
