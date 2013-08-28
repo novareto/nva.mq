@@ -6,22 +6,18 @@ import unittest
 from nva.mq.manager import MQDataManager, Message
 from nva.mq.components import MQSender
 from kombu import Connection, Consumer, Exchange, Queue
-from kombu.mixins import ConsumerMixin
 from kombu.utils import nested
+from kombu import Exchange, Queue, Consumer, Connection
 
 
 TEST_URL = "memory://localhost:8888//"
 
+URL = "memory://localhost:8888//"
 EXCHANGE = Exchange("messages", type="direct")
 QUEUES = dict(
     alert=Queue("alert", EXCHANGE, routing_key="alert"),
     info=Queue("info", EXCHANGE, routing_key="info"),
 )
-
-
-
-
-
 
 
 def receiver(url, callback):
@@ -39,6 +35,7 @@ class FileSafeDataManagerTests(unittest.TestCase):
         message.ack()
     
     def setUp(self):
+
         self.received = []
         self.dm = MQDataManager(url=TEST_URL, queues=QUEUES)
         self.message = Message('BLA', 'info')
@@ -81,4 +78,3 @@ class FileSafeDataManagerTests(unittest.TestCase):
         with pytest.raises(socket.timeout):
             self.receive()
         assert self.received == []
-
