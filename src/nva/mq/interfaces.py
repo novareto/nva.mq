@@ -7,3 +7,6 @@ from zope.component import Interface
 
 class IMQSender(Interface):
     pass
+
+class IReceiver(Interface):
+    pass

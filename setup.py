@@ -30,4 +30,10 @@ setup(name='nva.mq',
           'setuptools',
           ],
       test_suite = "nva.mq",
+      extras_require = {
+          'runner': ['zope.app.server',]
+      },
+      entry_points={
+          'console_scripts': ['run_receiver = nva.mq.runner:main']
+      },
       )
