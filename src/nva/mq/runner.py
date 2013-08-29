@@ -4,47 +4,93 @@
 
 import os
 import argparse
-import zope.app.wsgi
-import zope.app.server.main
-import zope.app.appsetup.product
-from zope.component import getUtility
+import transaction
+from cromlech.configuration.utils import load_zcml
+from cromlech.zodb.utils import init_db
 from nva.mq.interfaces import IReceiver
-
+from nva.mq.queue import IQueue
+from zope.component import getUtility
+from zope.interface import Interface
+from zope.app.publication.zopepublication import ZopePublication
+from cromlech.zodb.controlled import Connection as ZODBConnection
+from kombu import Connection as AMQPConnection
+from kombu.mixins import ConsumerMixin
 
 parser = argparse.ArgumentParser(usage="usage: prog [options]")
+
 parser.add_argument(
-    '--zope_conf', dest="zope_conf", default='localhost',
-    help=u'Zope Conf File')
+    '--zodb_conf', dest="zodb_conf", default=None,
+    help=u'ZODB configuration file')
+
+parser.add_argument(
+    '--zcml', dest="zcml", default=None,
+    help=u'ZCML configuration file')
+
 parser.add_argument(
     '--app', dest="app", default='app',
     help=u'App Name')
 
+parser.add_argument(
+    '--url', dest="url", default='amqp://guest:quest@locahost//',
+    help=u'URL of the AMQP server')
 
-def init(appname, configfile):
-    """Initialise the Zope environment (without network servers) and return a
-    specific root-level object.
-    """
-    options = zope.app.server.main.load_options(['-C', configfile])
-    zope.app.appsetup.product.setProductConfigurations(options.product_config)
 
-    db = zope.app.wsgi.config(
-        configfile,
-        schemafile=os.path.join(
-            os.path.dirname(zope.app.server.main.__file__), 'schema.xml'))
+class Worker(ConsumerMixin):
 
-    root = db.open().root()
-    app = root['Application']
-    if appname is not None:
-        app = app[appname]
-    return db, app
+    def __init__(self, connection, queues, tm, site):
+        self.connection = connection
+        self.site = site
+        self.queues = queues
+        self.tm = tm
+ 
+    def get_consumers(self, Consumer, channel):
+        return [Consumer(queues=self.queues, callbacks=[self.process])]
+ 
+    def process(self, body, message):
+        print body
+        message.ack()
+
+
+class BaseReader(object):
+
+    worker = Worker
+    
+    def __init__(self, url, db, appname, queues):
+        self.url = url
+        self.db = db
+        self.appname = appname
+        self.queues = [getUtility(IQueue, name=queue) for queue in queues]
+
+    def get_consumers(self, Consumer, channel):
+        return [Consumer(queues=self.queues, callbacks=[self.read])]
+
+    def start(self):
+        tm = transaction.TransactionManager()
+        with ZODBConnection(self.db, transaction_manager=tm) as zodb:
+            with tm:
+                #root = zodb.root()[ZopePublication.root_name]
+                #site = root[self.appname]
+                site = None
+                with AMQPConnection(self.url) as conn:
+                    Worker(conn, self.queues, tm, site).run()
+    
+
+def init(name, conf_file):
+    with open(conf_file, 'r') as fs:
+        config = fs.read()
+    db = init_db(config)    
+    return db
 
 
 def main():
     args = parser.parse_args()
-    zope_conf = os.path.join('parts', 'etc', 'zope.conf')
-    if args.zope_conf:
-        zope_conf = args.zope_conf
-    appname = args.app
-    db, app = init(appname, zope_conf)
-    receiver = getUtility(IReceiver)
-    receiver.start('amqp://guest:guest@localhost//', app)
+
+    if not args.zodb_conf:
+        raise RuntimeError('We need a zope conf')
+
+    if args.zcml:
+        load_zcml(args.zcml)
+
+    db = init(args.app, args.zodb_conf)
+    receiver = BaseReader(args.url, db, args.app, ['info'])
+    receiver.start()

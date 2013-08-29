@@ -28,12 +28,13 @@ setup(name='nva.mq',
           'kombu',
           'grokcore.component',
           'setuptools',
+          'zope.schema',
+          'zope.component',
+          'zope.configuration',
+          'cromlech.configuration',
           ],
       test_suite = "nva.mq",
       extras_require = {
-          'runner': ['zope.app.server',]
-      },
-      entry_points={
-          'console_scripts': ['run_receiver = nva.mq.runner:main']
+          'runner': ['cromlech.zodb', 'zope.app.publication']
       },
       )

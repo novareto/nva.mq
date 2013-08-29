@@ -1,0 +1,17 @@
+<configure
+    xmlns="http://namespaces.zope.org/zope"
+    xmlns:meta="http://namespaces.zope.org/meta">
+
+  <meta:groupingDirective
+      name="exchange"
+      namespace="http://namespaces.novareto.de/amqp"
+      schema=".exchange.IExchangeDirective"
+      handler=".exchange.ExchangeDecorator" />
+
+  <meta:directive
+      name="queue"
+      namespace="http://namespaces.novareto.de/amqp"
+      schema=".queue.IMQQueueDirective"
+      handler=".queue.mq_queue" />
+
+</configure>

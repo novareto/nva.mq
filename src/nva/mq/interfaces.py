@@ -5,8 +5,13 @@
 
 from zope.component import Interface
 
-class IMQSender(Interface):
-    pass
+class ISender(Interface):
+
+    def send(message):
+        pass
+        
 
 class IReceiver(Interface):
-    pass
+
+    def start(url):
+        pass

@@ -1,0 +1,18 @@
+<configure
+    xmlns="http://namespaces.zope.org/zope"
+    xmlns:meta="http://namespaces.zope.org/meta"
+    xmlns:amqp="http://namespaces.novareto.de/amqp">
+
+  <include package="nva.mq" file="meta.zcml" />
+  
+  <amqp:exchange
+      name="messages"
+      type="direct">
+
+     <amqp:queue
+	 name="info"
+	 routing_key="info" />
+
+  </amqp:exchange>
+
+</configure>

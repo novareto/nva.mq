@@ -11,6 +11,8 @@ from kombu.common import maybe_declare
 from kombu.pools import producers
 from zope.interface import implementer
 from transaction.interfaces import IDataManager
+from .queue import IQueue
+from zope.component import getUtility
 
 log = logging.getLogger("nva.mq")
 
@@ -56,7 +58,7 @@ class MQDataManager(object):
             while self.messages:
                 uid, message = self.messages.popitem()
                 payload = message.dump()
-                queue = self.queues.get(message.type)
+                queue = getUtility(IQueue, message.type)
                 message.publish(payload, conn, queue, message.type)
 
     def abort(self, transaction):

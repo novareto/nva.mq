@@ -2,44 +2,39 @@
 
 import optparse
 import transaction
+from nva.mq.queue import IQueue
 from nva.mq.manager import Message, MQTransaction
-from kombu import Exchange, Queue
-
-
-exchange = Exchange("messages", type="direct")
-queues = dict(
-    alert = Queue("alert", exchange, routing_key="alert"),
-    info = Queue("info", exchange, routing_key="info"),
-    )
+from cromlech.configuration.utils import load_zcml
+from zope.component import getUtility
 
 
 def rabbitmq_sender(url):
     message = Message(u"Hey, i'm here", type='info')
+    queue = getUtility(IQueue, name='info')
     with transaction.manager as tm:
-        with MQTransaction(url, queues, tm) as message_manager:
+        with MQTransaction(url, [queue], tm) as message_manager:
             message_manager.createMessage(message)
 
 
 if __name__ == "__main__":
+    
     parser = optparse.OptionParser(usage="usage: %prog [options]")
+
     parser.add_option(
-        '--host', dest="host", default='localhost',
+        '--url', dest="url", default='amqp://guest:guest@localhost//',
         help=u'Host of the AMQP server.')
+    
     parser.add_option(
-        '--user', dest="user", default='guest',
-        help=u'Username for the AMQP server authentication.')
-    parser.add_option(
-        '--password', dest="password", default='guest',
-        help=u'Password for the AMQP server authentication.')
-    parser.add_option(
-        '--vhost', dest="vhost", default='/',
-        help=u'Resource for the AMQP server authentication.')
+        '--zcml', dest="zcml", default=None,
+        help=u'ZCML file to read.')
+
     try:
         options, _ = parser.parse_args()
     except ValueError:
         print >>sys.stderr, parser.format_help()
         sys.exit(1)
 
-    url = "amqp://%s:%s@%s/%s" % (
-        options.user, options.password, options.host, options.vhost)
-    rabbitmq_sender(url)
+    if options.zcml is not None:
+        load_zcml(options.zcml)
+
+    rabbitmq_sender(options.url)
