@@ -4,7 +4,6 @@ import kombu
 from zope import schema
 from zope.interface import Interface, implementer
 from zope.configuration import fields
-from zope import schema
 from zope.component.zcml import utility
 from zope.configuration.config import ConfigurationContext
 from zope.configuration.interfaces import IConfigurationContext
@@ -27,7 +26,7 @@ class IExchangeDirective(Interface):
         title=u"Name of the AMQP exchange",
         required=True,
         )
-    
+
     type = schema.Choice(
         title=u"Type of distribution",
         required=True,

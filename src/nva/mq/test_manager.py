@@ -4,15 +4,34 @@ import socket
 import pytest
 import unittest
 from nva.mq.manager import MQDataManager, Message
-from nva.mq.components import MQSender
 from kombu import Connection, Consumer, Exchange, Queue
-from kombu.utils import nested
-from kombu import Exchange, Queue, Consumer, Connection
+from zope.configuration.xmlconfig import xmlconfig
+from cStringIO import StringIO
+
+ZCML = """
+<configure
+    xmlns="http://namespaces.zope.org/zope"
+    xmlns:meta="http://namespaces.zope.org/meta"
+    xmlns:amqp="http://namespaces.novareto.de/amqp">
+
+  <include package="nva.mq" file="meta.zcml" />
+
+  <amqp:exchange
+      name="messages"
+      type="direct">
+
+     <amqp:queue
+         name="info"
+         routing_key="info" />
+
+  </amqp:exchange>
+
+</configure>
+"""
 
 
 TEST_URL = "memory://localhost:8888//"
 
-URL = "memory://localhost:8888//"
 EXCHANGE = Exchange("messages", type="direct")
 QUEUES = dict(
     alert=Queue("alert", EXCHANGE, routing_key="alert"),
@@ -33,14 +52,13 @@ class FileSafeDataManagerTests(unittest.TestCase):
     def read(self, body, message):
         self.received.append(body)
         message.ack()
-    
-    def setUp(self):
 
+    def setUp(self):
         self.received = []
         self.dm = MQDataManager(url=TEST_URL, queues=QUEUES)
         self.message = Message('BLA', 'info')
         self.receive = receiver(TEST_URL, self.read)
-        
+
     def testEmptyDM(self):
         self.assertEqual(len(self.dm.messages), 0)
 
@@ -61,6 +79,7 @@ class FileSafeDataManagerTests(unittest.TestCase):
 
     def testSendingMessage(self):
         import transaction
+        xmlconfig(StringIO(ZCML))
         tr = transaction.begin()
         tr.join(self.dm)
         self.dm.createMessage(self.message)
