@@ -7,6 +7,7 @@ from nva.mq.manager import MQDataManager, Message
 from kombu import Connection, Consumer, Exchange, Queue
 from zope.configuration.xmlconfig import xmlconfig
 from cStringIO import StringIO
+from zope.component import globalregistry as gr
 
 ZCML = """
 <configure
@@ -58,11 +59,16 @@ class MQDataManagerTests(unittest.TestCase):
         message.ack()
 
     def setUp(self):
+        gr.globalSiteManager = gr.BaseGlobalComponents('test1')
         self.received = []
         self.dm = MQDataManager(url=TEST_URL, queues=QUEUES)
         self.message = Message('info', data="BLA")
         self.receive = receiver(TEST_URL, self.read)
 
+        
+    def tearDown(self):
+        gr.globalSiteManager = gr.base        
+        
     def testEmptyDM(self):
         self.assertEqual(len(self.dm.messages), 0)
 

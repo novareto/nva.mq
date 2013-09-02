@@ -16,6 +16,7 @@ from zope.app.publication.zopepublication import ZopePublication
 from cromlech.zodb.controlled import Connection as ZODBConnection
 from kombu import Connection as AMQPConnection
 from kombu.mixins import ConsumerMixin
+from kombu.common import drain_consumer
 
 parser = argparse.ArgumentParser(usage="usage: prog [options]")
 
@@ -48,8 +49,12 @@ class Worker(ConsumerMixin):
         return [Consumer(queues=self.queues, callbacks=[self.process])]
 
     def process(self, body, message):
-        processor = getUtility(IProcessor, name=body['processor'])
-        processor(body)
+        processor = body.get('processor')
+        if processor is not None:
+            handler = getUtility(IProcessor, name=processor)
+            handler(body)
+        else:
+            print body
         message.ack()
 
 
@@ -67,8 +72,8 @@ class BaseReader(object):
                 #site = root[appname]
                 site = None
                 with AMQPConnection(url) as conn:
-                    Worker(conn, queues, tm, site).run()
-
+                    consumer = Worker(conn, queues, tm, site)
+                    drain_consumer(consumer, limit=1, timeout=1)
 
 global_utility(BaseReader, provides=IReceiver)
 
