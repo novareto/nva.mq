@@ -7,7 +7,7 @@ import argparse
 import transaction
 from cromlech.configuration.utils import load_zcml
 from cromlech.zodb.utils import init_db
-from nva.mq.interfaces import IReceiver
+from nva.mq.interfaces import IReceiver, IProcessor
 from nva.mq.queue import IQueue
 from zope.component import getUtility
 from grokcore.component import global_utility
