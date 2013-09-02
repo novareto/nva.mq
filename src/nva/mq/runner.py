@@ -43,20 +43,20 @@ class Worker(ConsumerMixin):
         self.site = site
         self.queues = queues
         self.tm = tm
- 
+
     def get_consumers(self, Consumer, channel):
         return [Consumer(queues=self.queues, callbacks=[self.process])]
- 
+
     def process(self, body, message):
         processor = getUtility(IProcessor, name=body['processor'])
         processor(body)
         message.ack()
 
-        
+
 class BaseReader(object):
 
     worker = Worker
-    
+
     def start(self, url, db, appname, queues):
         print "--Starting %s--" % self
         tm = transaction.TransactionManager()
@@ -68,15 +68,15 @@ class BaseReader(object):
                 site = None
                 with AMQPConnection(url) as conn:
                     Worker(conn, queues, tm, site).run()
-    
+
 
 global_utility(BaseReader, provides=IReceiver)
 
-                    
+
 def init(name, conf_file):
     with open(conf_file, 'r') as fs:
         config = fs.read()
-    db = init_db(config)    
+    db = init_db(config)
     return db
 
 
