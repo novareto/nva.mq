@@ -32,6 +32,8 @@ setup(name='nva.mq',
           'zope.component',
           'zope.configuration',
           'cromlech.configuration',
+          'cromlech.zodb',
+          'zope.app.publication',
           ],
       test_suite = "nva.mq",
       extras_require = {

@@ -10,6 +10,7 @@ from cromlech.zodb.utils import init_db
 from nva.mq.interfaces import IReceiver
 from nva.mq.queue import IQueue
 from zope.component import getUtility
+from grokcore.component import global_utility
 from zope.interface import Interface
 from zope.app.publication.zopepublication import ZopePublication
 from cromlech.zodb.controlled import Connection as ZODBConnection
@@ -47,34 +48,31 @@ class Worker(ConsumerMixin):
         return [Consumer(queues=self.queues, callbacks=[self.process])]
  
     def process(self, body, message):
-        print body
+        processor = getUtility(IProcessor, name=body['processor'])
+        processor(body)
         message.ack()
 
-
+        
 class BaseReader(object):
 
     worker = Worker
     
-    def __init__(self, url, db, appname, queues):
-        self.url = url
-        self.db = db
-        self.appname = appname
-        self.queues = [getUtility(IQueue, name=queue) for queue in queues]
-
-    def get_consumers(self, Consumer, channel):
-        return [Consumer(queues=self.queues, callbacks=[self.read])]
-
-    def start(self):
+    def start(self, url, db, appname, queues):
+        print "--Starting %s--" % self
         tm = transaction.TransactionManager()
-        with ZODBConnection(self.db, transaction_manager=tm) as zodb:
+        queues = [getUtility(IQueue, name=queue) for queue in queues]
+        with ZODBConnection(db, transaction_manager=tm) as zodb:
             with tm:
                 #root = zodb.root()[ZopePublication.root_name]
-                #site = root[self.appname]
+                #site = root[appname]
                 site = None
-                with AMQPConnection(self.url) as conn:
-                    Worker(conn, self.queues, tm, site).run()
+                with AMQPConnection(url) as conn:
+                    Worker(conn, queues, tm, site).run()
     
 
+global_utility(BaseReader, provides=IReceiver)
+
+                    
 def init(name, conf_file):
     with open(conf_file, 'r') as fs:
         config = fs.read()
@@ -82,15 +80,11 @@ def init(name, conf_file):
     return db
 
 
-def main():
-    args = parser.parse_args()
+def main(zodb_conf, app, url, zcml=None):
 
-    if not args.zodb_conf:
-        raise RuntimeError('We need a zope conf')
+    if zcml:
+        load_zcml(zcml)
 
-    if args.zcml:
-        load_zcml(args.zcml)
-
-    db = init(args.app, args.zodb_conf)
-    receiver = BaseReader(args.url, db, args.app, ['info'])
-    receiver.start()
+    db = init(app, zodb_conf)
+    receiver = getUtility(IReceiver)
+    receiver.start(url, db, app, ['info'])

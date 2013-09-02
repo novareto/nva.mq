@@ -19,8 +19,8 @@ log = logging.getLogger("nva.mq")
 
 class Message(object):
 
-    def __init__(self, message, type):
-        self.message = message
+    def __init__(self, type, **data):
+        self.data = data
         self.type = type
 
     @property
@@ -28,7 +28,7 @@ class Message(object):
         return self.__hash__()
 
     def dump(self):
-        return {'message': self.message}
+        return self.data
 
     @staticmethod
     def publish(payload, connection, queue, routing_key):
