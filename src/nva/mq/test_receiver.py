@@ -3,8 +3,12 @@ from zope.component import getUtility
 from nva.mq.queue import IQueue
 from nva.mq.runner import BaseReader, Worker
 from nva.mq.manager import MQDataManager, Message
+from zope.configuration.xmlconfig import xmlconfig
+from cStringIO import StringIO
 
 TEST_URL = "memory://localhost:8888//"
+
+from nva.mq.test_manager import ZCML
 
 
 class MQReceiverTests(unittest.TestCase):
@@ -16,7 +20,7 @@ class MQReceiverTests(unittest.TestCase):
 
     def testSendingTwoMessages(self):
         import transaction
-        #xmlconfig(StringIO(ZCML))
+        xmlconfig(StringIO(ZCML))
         tr = transaction.begin()
         tr.join(self.dm)
         self.dm.createMessage(Message('info', data="INFO"))

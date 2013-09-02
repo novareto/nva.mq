@@ -24,6 +24,10 @@ ZCML = """
          name="info"
          routing_key="info" />
 
+     <amqp:queue
+         name="error"
+         routing_key="error" />
+
   </amqp:exchange>
 
 </configure>
@@ -34,7 +38,7 @@ TEST_URL = "memory://localhost:8888//"
 
 EXCHANGE = Exchange("messages", type="direct")
 QUEUES = dict(
-    alert=Queue("alert", EXCHANGE, routing_key="alert"),
+    error=Queue("error", EXCHANGE, routing_key="error"),
     info=Queue("info", EXCHANGE, routing_key="info"),
 )
 
@@ -47,7 +51,7 @@ def receiver(url, callback):
     return receive
 
 
-class FileSafeDataManagerTests(unittest.TestCase):
+class MQDataManagerTests(unittest.TestCase):
 
     def read(self, body, message):
         self.received.append(body)
@@ -56,7 +60,7 @@ class FileSafeDataManagerTests(unittest.TestCase):
     def setUp(self):
         self.received = []
         self.dm = MQDataManager(url=TEST_URL, queues=QUEUES)
-        self.message = Message('BLA', 'info')
+        self.message = Message('info', data="BLA")
         self.receive = receiver(TEST_URL, self.read)
 
     def testEmptyDM(self):
@@ -85,7 +89,7 @@ class FileSafeDataManagerTests(unittest.TestCase):
         self.dm.createMessage(self.message)
         transaction.commit()
         self.receive()
-        assert self.received == [{u'message': u'BLA'}]
+        assert self.received == [{u'data': u'BLA'}]
         self.received = []
 
     def test_abortion(self):
