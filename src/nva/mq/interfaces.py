@@ -13,5 +13,11 @@ class ISender(Interface):
 
 class IReceiver(Interface):
 
-    def start(url):
+    def start(url, db, appname, queues):
+        pass
+
+
+class IProcessor(Interface):
+
+    def __call__(data):
         pass
