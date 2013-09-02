@@ -16,7 +16,6 @@ from zope.app.publication.zopepublication import ZopePublication
 from cromlech.zodb.controlled import Connection as ZODBConnection
 from kombu import Connection as AMQPConnection
 from kombu.mixins import ConsumerMixin
-from kombu.common import drain_consumer
 
 parser = argparse.ArgumentParser(usage="usage: prog [options]")
 
@@ -72,8 +71,8 @@ class BaseReader(object):
                 #site = root[appname]
                 site = None
                 with AMQPConnection(url) as conn:
-                    consumer = Worker(conn, queues, tm, site)
-                    drain_consumer(consumer, limit=1, timeout=1)
+                    Worker(conn, queues, tm, site).run()
+
 
 global_utility(BaseReader, provides=IReceiver)
 

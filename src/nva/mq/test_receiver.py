@@ -15,17 +15,15 @@ TEST_URL = "memory://localhost:8888//"
 from nva.mq.test_manager import ZCML
 from cromlech.zodb.controlled import Connection as ZODBConnection
 from kombu import Connection as AMQPConnection
-from kombu.common import drain_consumer
+from kombu.common import itermessages
 
 
 RECEIVED = []
 
 
-class TestWorker(Worker):
-
-    def process(self, body, message):
-        super(TestWorker, self).process(body, message)
-        RECEIVED.append(message)
+def saveme(body, message):
+    RECEIVED.append(body)
+    message.ack()
 
 
 class TestBaseReader(BaseReader):
@@ -33,16 +31,21 @@ class TestBaseReader(BaseReader):
     def start(self, url, db, appname, queues):
         print "--Starting %s--" % self
         tm = transaction.TransactionManager()
-        queues = [getUtility(IQueue, name=queue) for queue in queues]
         with ZODBConnection(db, transaction_manager=tm) as zodb:
             with tm:
                 #root = zodb.root()[ZopePublication.root_name]
                 #site = root[appname]
                 site = None
                 with AMQPConnection(url) as conn:
-                    consumer = TestWorker(conn, queues, tm, site)
-                    drain_consumer(consumer, limit=1, timeout=1, callbacks=[consumer.process])
-
+                    for queue_name in queues:
+                        queue = getUtility(IQueue, name=queue_name)
+                        with conn.channel() as channel:
+                            it = itermessages(
+                                conn, channel, queue,
+                                limit=1, timeout=1, callbacks=[saveme])
+                            for i in it:
+                                # consuming
+                                pass
 
 
 class MQReceiverTests(unittest.TestCase):
@@ -63,5 +66,6 @@ class MQReceiverTests(unittest.TestCase):
             tr.join(self.dm)
             self.dm.createMessage(Message('info', data={'message': "INFO"}))
             self.dm.createMessage(Message('error', data={'message': "ERROR"}))
-        self.receiver.start(TEST_URL, self.db, 'app', ['info', 'error'])
+
+        messages = self.receiver.start(TEST_URL, self.db, 'app', ['info', 'error'])
         assert len(RECEIVED) == 2
