@@ -19,6 +19,10 @@ from nva.mq.queue import IQueue
 from zope.app.publication.zopepublication import ZopePublication
 from zope.component import getUtility
 from zope.interface import Interface
+from zope.app.publication.zopepublication import ZopePublication
+from cromlech.zodb.controlled import Connection as ZODBConnection
+from kombu import Connection as AMQPConnection
+from kombu.mixins import ConsumerMixin
 
 
 def resolve_queues(qids):
