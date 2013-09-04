@@ -2,27 +2,22 @@
 # Copyright (c) 2007-2013 NovaReto GmbH
 # cklinger@novareto.de
 
-import os
-import argparse
 import transaction
 import socket
-from kombu.utils import nested
 from cromlech.configuration.utils import load_zcml
 from cromlech.zodb.controlled import Connection as ZODBConnection
 from cromlech.zodb.utils import init_db
 from grokcore.component import global_utility
 from kombu import Consumer, Connection as AMQPConnection
-from kombu.common import drain_consumer, itermessages
-from nva.mq.interfaces import IListener, IReceiver, IProcessor
+from kombu.utils import nested
+from nva.mq.interfaces import IListener, ISender, IProcessor
 from nva.mq.manager import Message, MQTransaction
 from nva.mq.queue import IQueue
-from zope.app.publication.zopepublication import ZopePublication
-from zope.component import getUtility
-from zope.interface import Interface
-from zope.app.publication.zopepublication import ZopePublication
-from cromlech.zodb.controlled import Connection as ZODBConnection
-from kombu import Connection as AMQPConnection
-from kombu.mixins import ConsumerMixin
+from zope.component import getUtility, getGlobalSiteManager
+
+# To use to find the root
+# should be used in a processor, then, probably not here
+# from zope.app.publication.zopepublication import ZopePublication
 
 
 def resolve_queues(qids):
@@ -42,7 +37,6 @@ def processor(name, **data):
         if errors is None:
             message.ack()
     return process
-
 
 
 class BaseReader(object):
@@ -80,25 +74,42 @@ def poller(zodb_conf=None, app="app", url=None, zcml_file=None):
     if zcml_file:
         load_zcml(zcml_file)
 
-    db = init_db(zodb_conf)
-    
     listener = getUtility(IListener)
     receiver = listener(url)
 
     tm = transaction.TransactionManager()
-    with ZODBConnection(db, transaction_manager=tm) as zodb:
-        with tm:
-           receiver.poll(['info'], timeout=2, **{'db_root': db})
+    if zodb_conf:
+        db = init_db(zodb_conf)
+        with ZODBConnection(db, transaction_manager=tm):
+            with tm:
+                receiver.poll(['info'], timeout=2, **{'db_root': db})
+    else:
+         receiver.poll(['info'], timeout=2)   
 
+         
+class Sender(object):
 
+    def __init__(self, url, qids):
+        self.url = url
+        self.qids = qids
+
+    def send(self, message):
+        queues = [getUtility(IQueue, name=qid) for qid in self.qids]
+        with transaction.manager as tm:
+            with MQTransaction(self.url, queues, tm) as message_manager:
+                message_manager.createMessage(message)
+                
+            
 def sender(url=None, zcml_file=None):
     """Used for test purposes.
     """
     if zcml_file:
         load_zcml(zcml_file)
 
+    gsm = getGlobalSiteManager()
+    sender = Sender(url, ['info'])
+    gsm.registerUtility(sender, ISender, name="info")
+
+    test_sender = getUtility(ISender, name="info")
     message = Message('info', **{'message': 'ping'})
-    queue = getUtility(IQueue, name='info')
-    with transaction.manager as tm:
-        with MQTransaction(url, [queue], tm) as message_manager:
-            message_manager.createMessage(message)
+    test_sender.send(message)

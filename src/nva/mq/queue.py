@@ -1,9 +1,8 @@
 # -*- coding: utf-8 -*-
 
 import kombu
-from zope.interface import Interface
-from zope.configuration import fields
 from zope import schema
+from zope.interface import Interface
 from zope.component.zcml import utility
 
 

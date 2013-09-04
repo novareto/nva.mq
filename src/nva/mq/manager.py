@@ -2,13 +2,9 @@
 # Copyright (c) 2007-2013 NovaReto GmbH
 # cklinger@novareto.de
 
-
 import logging
-import threading
 import transaction
 from kombu import Connection
-from kombu.common import maybe_declare
-from kombu.pools import producers
 from zope.interface import implementer
 from transaction.interfaces import IDataManager
 from .queue import IQueue
