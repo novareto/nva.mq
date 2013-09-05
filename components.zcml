@@ -13,6 +13,7 @@
 
      <amqp:queue
 	 name="info"
+	 processor="nva.mq.runner.test_processor"
 	 routing_key="info" />
 
   </amqp:exchange>

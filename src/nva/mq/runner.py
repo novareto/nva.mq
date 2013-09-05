@@ -12,22 +12,8 @@ from kombu import Consumer, Connection as AMQPConnection
 from kombu.utils import nested
 from nva.mq.interfaces import IListener, ISender, IProcessor
 from nva.mq.manager import Message, MQTransaction
-from nva.mq.queue import IQueue
-from zope.component import getUtility, getGlobalSiteManager
-
-# To use to find the root
-# should be used in a processor, then, probably not here
-# from zope.app.publication.zopepublication import ZopePublication
-
-
-def resolve_queues(qids):
-    for qid in qids:
-        try:
-            queue = getUtility(IQueue, name=qid)
-            yield qid, queue
-        except:
-            # handle me
-            raise
+from nva.mq.queue import IEmissionQueue, IReceptionQueue
+from zope.component import getUtility, getGlobalSiteManager, getUtilitiesFor
 
 
 def processor(name, **data):
@@ -44,13 +30,12 @@ class BaseReader(object):
     def __init__(self, url):
         self.url = url
 
-    def poll(self, qids, limit=None, timeout=None, **data):
-        print "--Starting the poller for %s, %s--" % (qids, data)
-        queues = resolve_queues(qids)
+    def poll(self, queues, limit=None, timeout=None, **data):
+        print "--Starting the poller for %s, %s--" % (queues.keys(), data)
         with AMQPConnection(self.url) as conn:
             consumers = [Consumer(conn.channel(), queues=[queue],
                                   callbacks=[processor(name, **data)])
-                for name, queue in queues]
+                for name, queue in queues.items()]
             with nested(*consumers):
                 while True:
                     try:
@@ -62,11 +47,6 @@ class BaseReader(object):
 global_utility(BaseReader, provides=IListener, direct=True)
 
 
-def info_processor(body, message, **data):
-    print body, message, data
-
-
-global_utility(info_processor, provides=IProcessor, direct=True, name="info")
     
 
 def poller(zodb_conf=None, app="app", url=None, zcml_file=None):
@@ -78,28 +58,34 @@ def poller(zodb_conf=None, app="app", url=None, zcml_file=None):
     receiver = listener(url)
 
     tm = transaction.TransactionManager()
+    queues = dict(getUtilitiesFor(IReceptionQueue))
     if zodb_conf:
         db = init_db(zodb_conf)
         with ZODBConnection(db, transaction_manager=tm):
             with tm:
-                receiver.poll(['info'], timeout=2, **{'db_root': db})
+                receiver.poll(queues, timeout=2, **{'db_root': db})
     else:
-         receiver.poll(['info'], timeout=2)   
+         receiver.poll(queues, timeout=2)   
 
-         
+
 class Sender(object):
 
-    def __init__(self, url, qids):
+    def __init__(self, url, queues):
         self.url = url
-        self.qids = qids
+        self.queues = queues
 
     def send(self, message):
-        queues = [getUtility(IQueue, name=qid) for qid in self.qids]
         with transaction.manager as tm:
-            with MQTransaction(self.url, queues, tm) as message_manager:
+            with MQTransaction(self.url, self.queues, tm) as message_manager:
                 message_manager.createMessage(message)
                 
-            
+
+def test_processor(queue, name):
+    def info_processor(body, message, **data):
+        print body, message, data
+    return info_processor
+
+        
 def sender(url=None, zcml_file=None):
     """Used for test purposes.
     """
@@ -107,7 +93,9 @@ def sender(url=None, zcml_file=None):
         load_zcml(zcml_file)
 
     gsm = getGlobalSiteManager()
-    sender = Sender(url, ['info'])
+
+    queues = dict(getUtilitiesFor(IEmissionQueue))
+    sender = Sender(url, queues.values)
     gsm.registerUtility(sender, ISender, name="info")
 
     test_sender = getUtility(ISender, name="info")
