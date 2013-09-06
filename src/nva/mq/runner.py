@@ -14,11 +14,16 @@ from nva.mq.interfaces import IListener, ISender, IProcessor
 from nva.mq.manager import Message, MQTransaction
 from nva.mq.queue import IEmissionQueue, IReceptionQueue
 from zope.component import getUtility, getGlobalSiteManager, getUtilitiesFor
+from nva.mq import log
 
 
 def processor(name, **data):
     handler = getUtility(IProcessor, name=name)
+
     def process(body, message):
+        log.debug('Receiving Message in Exchange %s, with RoutingKey %s' % (
+            message.delivery_info['exchange'],
+            message.delivery_info['routing_key']))
         errors = handler(body, message, **data)
         if errors is None:
             message.ack()
@@ -31,11 +36,11 @@ class BaseReader(object):
         self.url = url
 
     def poll(self, queues, limit=None, timeout=None, **data):
-        print "--Starting the poller for %s, %s--" % (queues.keys(), data)
+        log.debug('Starting Poller for %s, %s' % (queues.keys(), data))
         with AMQPConnection(self.url) as conn:
             consumers = [Consumer(conn.channel(), queues=[queue],
                                   callbacks=[processor(name, **data)])
-                for name, queue in queues.items()]
+                         for name, queue in queues.items()]
             with nested(*consumers):
                 while True:
                     try:
@@ -43,11 +48,9 @@ class BaseReader(object):
                     except socket.timeout:
                         break
 
-                    
+
 global_utility(BaseReader, provides=IListener, direct=True)
 
-
-    
 
 def poller(zodb_conf=None, app="app", url=None, zcml_file=None):
 
@@ -60,12 +63,12 @@ def poller(zodb_conf=None, app="app", url=None, zcml_file=None):
     tm = transaction.TransactionManager()
     queues = dict(getUtilitiesFor(IReceptionQueue))
     if zodb_conf:
-        db = init_db(zodb_conf)
+        db = init_db(open(zodb_conf, 'r').read())
         with ZODBConnection(db, transaction_manager=tm):
             with tm:
                 receiver.poll(queues, timeout=2, **{'db_root': db})
     else:
-         receiver.poll(queues, timeout=2)   
+        receiver.poll(queues, timeout=2)
 
 
 class Sender(object):
@@ -76,16 +79,17 @@ class Sender(object):
 
     def send(self, message):
         with transaction.manager as tm:
+            log.debug('Sending Message for routing_key %s' % (message.type))
             with MQTransaction(self.url, self.queues, tm) as message_manager:
                 message_manager.createMessage(message)
-                
+
 
 def test_processor(queue, name):
     def info_processor(body, message, **data):
         print body, message, data
     return info_processor
 
-        
+
 def sender(url=None, zcml_file=None):
     """Used for test purposes.
     """

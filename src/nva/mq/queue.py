@@ -49,7 +49,7 @@ class IMQQueueDirective(Interface):
         default=True,
         )
 
-    
+
 def mq_queue(context, name,
              routing_key=u"default", processor=None, allow_emission=True):
 
@@ -57,7 +57,7 @@ def mq_queue(context, name,
         raise ValueError(u'A queue must be able to either send or receive.')
 
     queue = kombu.Queue(name, context.exchange, routing_key)
-    
+
     if processor is not None:
         receiver = processor(queue, name)
         utility(context, IProcessor, receiver, name=name)

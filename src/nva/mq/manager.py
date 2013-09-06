@@ -2,15 +2,15 @@
 # Copyright (c) 2007-2013 NovaReto GmbH
 # cklinger@novareto.de
 
-import logging
 import transaction
+
+from nva.mq import log
 from kombu import Connection
+from nva.mq.queue import IQueue
+from zope.component import getUtility
 from zope.interface import implementer
 from transaction.interfaces import IDataManager
-from .queue import IQueue
-from zope.component import getUtility
 
-log = logging.getLogger("nva.mq")
 
 
 class Message(object):
@@ -56,6 +56,7 @@ class MQDataManager(object):
                 payload = message.dump()
                 queue = getUtility(IQueue, message.type)
                 message.publish(payload, conn, queue, message.type)
+                log.debug('Sending Message to queue %s' %queue)
 
     def abort(self, transaction):
         self.messages = {}
