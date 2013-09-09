@@ -52,7 +52,7 @@ class BaseReader(object):
 global_utility(BaseReader, provides=IListener, direct=True)
 
 
-def poller(zodb_conf=None, app="app", url=None, zcml_file=None):
+def poller(zodb_conf=None, app="app", url=None, zcml_file=None, timeout=None):
 
     if zcml_file:
         load_zcml(zcml_file)
@@ -64,11 +64,11 @@ def poller(zodb_conf=None, app="app", url=None, zcml_file=None):
     queues = dict(getUtilitiesFor(IReceptionQueue))
     if zodb_conf:
         db = init_db(open(zodb_conf, 'r').read())
-        with ZODBConnection(db, transaction_manager=tm):
+        with ZODBConnection(db, transaction_manager=tm) as zodb:
             with tm:
-                receiver.poll(queues, timeout=2, **{'db_root': db})
+                receiver.poll(queues, timeout=timeout, **{'db_root': zodb})
     else:
-        receiver.poll(queues, timeout=2)
+        receiver.poll(queues, timeout=timeout)
 
 
 class Sender(object):
