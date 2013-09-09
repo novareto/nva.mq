@@ -9,6 +9,7 @@ from nva.mq.manager import Message, MQTransaction
 from nva.mq.queue import IEmissionQueue
 from zope.component import getUtility, getGlobalSiteManager, getUtilitiesFor
 from nva.mq import log, reader
+from threading import Thread
 
 
 #test purposes
@@ -49,9 +50,33 @@ def sender(url):
     test_sender.send(message)
 
 
-def poller(url, timeout=1, zcml_file=None, zodb_file=None):
-    if zodb_file:
-        reader.zodb_aware_poller(
-            url, timeout, zcml_file=zcml_file, zodb_file=zodb_file)
+def poller(url, timeout=1, zcml_file=None, zodb_file=None, threads=None):
+
+    def launch(url, timeout, zcml_file=zcml_file, zodb_file=zodb_file):
+        if zodb_file:
+            reader.zodb_aware_poller(
+                url, timeout, zcml_file=zcml_file, zodb_file=zodb_file)
+        else:
+            reader.poller(url, timeout, zcml_file=zcml_file)
+
+
+    class PollThread(Thread):
+
+        def __init__(self, url, timeout=1, zcml_file=None, zodb_file=None):
+            Thread.__init__(self)
+            self.url = url
+            self.timeout = timeout
+            self.zcml_file = zcml_file
+            self.zodb_file = zodb_file
+
+        def run(self):
+            launch(self.url, timeout=self.timeout,
+                   zcml_file=self.zcml_file, zodb_file=self.zodb_file)
+
+    if threads:
+        runners = {}
+        for i in range(0, threads):
+            t = runners[i] = PollThread(url, timeout + (i*10), zcml_file, zodb_file)
+            t.start()
     else:
-        reader.poller(url, timeout, zcml_file=zcml_file)
+        launch(url, timeout, zcml_file=zcml_file, zodb_file=zodb_file)

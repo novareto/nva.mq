@@ -45,6 +45,7 @@ class BaseReader(object):
                     try:
                         conn.drain_events(timeout=timeout)
                     except socket.timeout:
+                        print "Timeout."
                         break
 
 
