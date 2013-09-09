@@ -36,5 +36,28 @@ class IListener(IFactory):
         """
 
 
+class IReader(Interface):
+    """An IReader is a receiving policy object in charge of starting 
+    the polling of the queues and propagting the arguments through the
+    whole process.
+    """
 
+    def __init__(url):
+        """Initializes the reader for the given URL.
+        """
     
+    def poll(queues, timeout, **data):
+        """Starts the polling for the given queues.
+        If `timeout` is not None and set to an integer value, the polling
+        will be interrupted after `timeout` seconds of inactivity.
+        `data` is a dict-like structure propagated through to the processor.
+        """
+
+
+class IPoller(Interface):
+
+    def __call__(url, timeout, *args, **data):
+        """Starts the polling process.
+        If timeout is set, the process is interrupt after `timeout` seconds
+        of inactivity.
+        """

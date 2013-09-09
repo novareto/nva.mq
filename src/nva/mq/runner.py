@@ -3,72 +3,16 @@
 # cklinger@novareto.de
 
 import transaction
-import socket
-from cromlech.configuration.utils import load_zcml
-from cromlech.zodb.controlled import Connection as ZODBConnection
-from cromlech.zodb.utils import init_db
 from grokcore.component import global_utility
-from kombu import Consumer, Connection as AMQPConnection
-from kombu.utils import nested
-from nva.mq.interfaces import IListener, ISender, IProcessor
+from nva.mq.interfaces import ISender, IListener
 from nva.mq.manager import Message, MQTransaction
-from nva.mq.queue import IEmissionQueue, IReceptionQueue
+from nva.mq.queue import IEmissionQueue
 from zope.component import getUtility, getGlobalSiteManager, getUtilitiesFor
-from nva.mq import log
+from nva.mq import log, reader
 
 
-def processor(name, **data):
-    handler = getUtility(IProcessor, name=name)
-
-    def process(body, message):
-        log.debug('Receiving Message in Exchange %s, with RoutingKey %s' % (
-            message.delivery_info['exchange'],
-            message.delivery_info['routing_key']))
-        errors = handler(body, message, **data)
-        if errors is None:
-            message.ack()
-    return process
-
-
-class BaseReader(object):
-
-    def __init__(self, url):
-        self.url = url
-
-    def poll(self, queues, limit=None, timeout=None, **data):
-        log.debug('Starting Poller for %s, %s' % (queues.keys(), data))
-        with AMQPConnection(self.url) as conn:
-            consumers = [Consumer(conn.channel(), queues=[queue],
-                                  callbacks=[processor(name, **data)])
-                         for name, queue in queues.items()]
-            with nested(*consumers):
-                while True:
-                    try:
-                        conn.drain_events(timeout=timeout)
-                    except socket.timeout:
-                        break
-
-
-global_utility(BaseReader, provides=IListener, direct=True)
-
-
-def poller(zodb_conf=None, app="app", url=None, zcml_file=None, timeout=None):
-
-    if zcml_file:
-        load_zcml(zcml_file)
-
-    listener = getUtility(IListener)
-    receiver = listener(url)
-
-    tm = transaction.TransactionManager()
-    queues = dict(getUtilitiesFor(IReceptionQueue))
-    if zodb_conf:
-        db = init_db(open(zodb_conf, 'r').read())
-        with ZODBConnection(db, transaction_manager=tm) as zodb:
-            with tm:
-                receiver.poll(queues, timeout=timeout, **{'db_root': zodb})
-    else:
-        receiver.poll(queues, timeout=timeout)
+#test purposes
+global_utility(reader.BaseReader, IListener, direct=True)
 
 
 class Sender(object):
@@ -90,12 +34,10 @@ def test_processor(queue, name):
     return info_processor
 
 
-def sender(url=None, zcml_file=None):
+@reader.zcml_ignited
+def sender(url):
     """Used for test purposes.
     """
-    if zcml_file:
-        load_zcml(zcml_file)
-
     gsm = getGlobalSiteManager()
 
     queues = dict(getUtilitiesFor(IEmissionQueue))
@@ -105,3 +47,11 @@ def sender(url=None, zcml_file=None):
     test_sender = getUtility(ISender, name="info")
     message = Message('info', **{'message': 'ping'})
     test_sender.send(message)
+
+
+def poller(url, timeout=1, zcml_file=None, zodb_file=None):
+    if zodb_file:
+        reader.zodb_aware_poller(
+            url, timeout, zcml_file=zcml_file, zodb_file=zodb_file)
+    else:
+        reader.poller(url, timeout, zcml_file=zcml_file)
