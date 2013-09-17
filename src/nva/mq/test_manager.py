@@ -29,6 +29,11 @@ ZCML = """
          name="error"
          routing_key="error" />
 
+     <amqp:queue
+         name="debug"
+         processor="nva.mq.test_receiver.TestReceiver"
+         routing_key="debug" />
+
   </amqp:exchange>
 
 </configure>
@@ -65,10 +70,9 @@ class MQDataManagerTests(unittest.TestCase):
         self.message = Message('info', data="BLA")
         self.receive = receiver(TEST_URL, self.read)
 
-        
     def tearDown(self):
-        gr.globalSiteManager = gr.base        
-        
+        gr.globalSiteManager = gr.base
+
     def testEmptyDM(self):
         self.assertEqual(len(self.dm.messages), 0)
 

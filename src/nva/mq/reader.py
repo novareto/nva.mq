@@ -57,7 +57,7 @@ def zcml_ignited(func):
         print kwargs
         return func(*args, **kwargs)
     return zcml_decorated
-        
+
 
 def get_reader(url, name=u''):
     listener = getUtility(IListener, name=name)
