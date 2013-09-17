@@ -51,5 +51,7 @@ class MQReceiverTests(unittest.TestCase):
         debug = getUtility(IReceptionQueue, name="debug")
         sender = Sender(TEST_URL, [debug, ])
         sender.send(Message('debug', data="BLA"))
+        assert len(MESSAGES) == 0
         poller(TEST_URL)
-
+        assert len(MESSAGES) == 1
+        assert MESSAGES[0].delivery_info == {'priority': 0, 'routing_key': 'debug', 'exchange': 'messages'}
