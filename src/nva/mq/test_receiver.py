@@ -10,7 +10,7 @@ from nva.mq.test_manager import ZCML
 from nva.mq.interfaces import IListener
 from zope.component import getUtility
 from nva.mq.queue import IReceptionQueue, IEmissionQueue
-from zope.component import globalregistry as gr
+from zope.component import globalregistry as gr, provideUtility
 from zope.configuration.xmlconfig import xmlconfig
 
 
@@ -25,7 +25,7 @@ class TestReceiver(object):
         self.queue = queue
         self.name = name
 
-    def __call__(self, body, message, data):
+    def __call__(self, body, message, **data):
         MESSAGES.append(message)
 
 
@@ -34,10 +34,9 @@ class MQReceiverTests(unittest.TestCase):
     def setUp(self):
         gr.globalSiteManager = gr.BaseGlobalComponents('test2')
         xmlconfig(StringIO(ZCML))
-        gr.base.registerUtility(nva.mq.reader.BaseReader, IListener)
+        provideUtility(nva.mq.reader.BaseReader, IListener)
 
     def tearDown(self):
-        gr.base.unregisterUtility(nva.mq.reader.BaseReader, IListener)
         gr.globalSiteManager = gr.base
 
     def testUtilities(self):
