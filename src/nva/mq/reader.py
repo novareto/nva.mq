@@ -48,6 +48,21 @@ class BaseReader(object):
                         print "Timeout."
                         break
 
+import ZConfig
+import os.path
+from zope.app import appsetup
+import zope.app.appsetup.product
+
+def app_setup(func):
+    def with_appsetup(*args, **kwargs):
+        zodb_conf = kwargs.get('zodb_conf', None)
+        schemafile = os.path.join(os.path.dirname(appsetup.__file__), 'schema', 'schema.xml')
+        schema = ZConfig.loadSchema(schemafile)
+        options, handlers = ZConfig.loadConfig(schema, zodb_conf)
+        zope.app.appsetup.product.setProductConfigurations(options.product_config)
+        return func(*args, **kwargs)
+    return with_appsetup
+
 
 def zcml_ignited(func):
     def zcml_decorated(*args, **kwargs):
@@ -66,19 +81,20 @@ def get_reader(url, name=u''):
 
 @zcml_ignited
 @provider(IPoller)
-def poller(url, timeout):
+def poller(url, timeout=None):
     queues = dict(getUtilitiesFor(IReceptionQueue))
     receiver = get_reader(url)
     receiver.poll(queues, timeout=timeout)
 
 
+@app_setup
 @zcml_ignited
 @provider(IPoller)
-def zodb_aware_poller(url, timeout, zodb_conf=None, **data):
+def zodb_aware_poller(url, timeout=None, db_conf=None, zodb_conf=None, **data):
     queues = dict(getUtilitiesFor(IReceptionQueue))
     receiver = get_reader(url)
     tm = transaction.TransactionManager()
-    db = init_db(open(zodb_conf, 'r').read())
+    db = init_db(open(db_conf, 'r').read())
     with ZODBConnection(db, transaction_manager=tm) as zodb:
         with tm:
             data['db_root'] = zodb
