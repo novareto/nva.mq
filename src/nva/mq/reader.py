@@ -1,18 +1,20 @@
 # -*- coding: utf-8 -*-
 
-from .interfaces import IReader, IPoller
+import socket
+import transaction
+
 from cromlech.configuration.utils import load_zcml
 from cromlech.zodb.controlled import Connection as ZODBConnection
 from cromlech.zodb.utils import init_db
 from kombu import Consumer, Connection as AMQPConnection
 from kombu.utils import nested
-from nva.mq import log
-from nva.mq.interfaces import IListener, IProcessor
-from nva.mq.queue import IReceptionQueue
 from zope.component import getUtility, getUtilitiesFor
 from zope.interface import implementer, provider
-import socket
-import transaction
+
+from . import log
+from .interfaces import IReader, IPoller
+from .interfaces import IListener, IProcessor
+from .queue import IReceptionQueue
 
 
 def processor(name, **data):
@@ -48,21 +50,6 @@ class BaseReader(object):
                         print "Timeout."
                         break
 
-import ZConfig
-import os.path
-from zope.app import appsetup
-import zope.app.appsetup.product
-
-def app_setup(func):
-    def with_appsetup(*args, **kwargs):
-        zodb_conf = kwargs.get('zodb_conf', None)
-        schemafile = os.path.join(os.path.dirname(appsetup.__file__), 'schema', 'schema.xml')
-        schema = ZConfig.loadSchema(schemafile)
-        options, handlers = ZConfig.loadConfig(schema, zodb_conf)
-        zope.app.appsetup.product.setProductConfigurations(options.product_config)
-        return func(*args, **kwargs)
-    return with_appsetup
-
 
 def zcml_ignited(func):
     def zcml_decorated(*args, **kwargs):
@@ -87,7 +74,6 @@ def poller(url, timeout=None):
     receiver.poll(queues, timeout=timeout)
 
 
-@app_setup
 @zcml_ignited
 @provider(IPoller)
 def zodb_aware_poller(url, timeout=None, db_conf=None, zodb_conf=None, **data):
